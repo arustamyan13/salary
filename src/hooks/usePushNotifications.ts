@@ -3,6 +3,8 @@ import { supabase } from '../lib/supabase'
 import { useAuth } from '../context/AuthContext'
 import { OWNER_ID } from '../lib/auth'
 
+const MAX_PUSH_CONNECTIONS = 2
+
 function urlBase64ToUint8Array(base64String: string): Uint8Array {
   const padding = '='.repeat((4 - (base64String.length % 4)) % 4)
   const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/')
@@ -25,6 +27,36 @@ async function subscriptionToKeys(subscription: PushSubscription) {
     p256dh: keys.p256dh,
     auth: keys.auth,
   }
+}
+
+async function keepOnlyLatestConnections(keepEndpoint: string) {
+  const { data, error } = await supabase
+    .from('push_subscriptions')
+    .select('id, endpoint, updated_at, created_at')
+    .eq('user_id', OWNER_ID)
+    .order('updated_at', { ascending: false })
+
+  if (error || !data) return
+
+  // Prefer rows sorted with the just-saved endpoint first, then by recency
+  const sorted = [...data].sort((a, b) => {
+    if (a.endpoint === keepEndpoint) return -1
+    if (b.endpoint === keepEndpoint) return 1
+    const ta = new Date(a.updated_at || a.created_at).getTime()
+    const tb = new Date(b.updated_at || b.created_at).getTime()
+    return tb - ta
+  })
+
+  const stale = sorted.slice(MAX_PUSH_CONNECTIONS)
+  if (stale.length === 0) return
+
+  await supabase
+    .from('push_subscriptions')
+    .delete()
+    .in(
+      'id',
+      stale.map((row) => row.id),
+    )
 }
 
 export function usePushNotifications() {
@@ -95,6 +127,8 @@ export function usePushNotifications() {
       )
 
       if (upsertError) throw new Error(upsertError.message)
+
+      await keepOnlyLatestConnections(keys.endpoint)
 
       setSubscribed(true)
       setLoading(false)
