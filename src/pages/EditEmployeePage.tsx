@@ -1,23 +1,65 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { EmployeeModal } from '../components/EmployeeModal'
 import { useEmployees } from '../context/EmployeesContext'
+import { supabase } from '../lib/supabase'
 import {
   daysUntilPay,
   formatDaysLeft,
   formatPayDate,
   formatSalary,
 } from '../lib/dates'
-import type { EmployeeInsert } from '../types/employee'
+import type { Employee, EmployeeInsert } from '../types/employee'
 
 export function EditEmployeePage() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
   const { getById, updateEmployee, deleteEmployee, markPaid, loading } = useEmployees()
-  const employee = id ? getById(id) : undefined
+  const fromList = id ? getById(id) : undefined
+  const [fetched, setFetched] = useState<Employee | null>(null)
+  const [fetching, setFetching] = useState(false)
+  const [fetchError, setFetchError] = useState<string | null>(null)
   const [editOpen, setEditOpen] = useState(false)
   const [busy, setBusy] = useState(false)
   const [message, setMessage] = useState<string | null>(null)
+
+  const employee = fromList ?? fetched ?? undefined
+
+  useEffect(() => {
+    if (!id || fromList) {
+      setFetched(null)
+      setFetchError(null)
+      return
+    }
+
+    let cancelled = false
+    setFetching(true)
+    setFetchError(null)
+
+    void supabase
+      .from('employees')
+      .select('*')
+      .eq('id', id)
+      .maybeSingle()
+      .then(({ data, error }) => {
+        if (cancelled) return
+        setFetching(false)
+        if (error) {
+          setFetchError(error.message)
+          setFetched(null)
+          return
+        }
+        if (!data) {
+          setFetched(null)
+          return
+        }
+        setFetched({ ...(data as Employee), salary: Number((data as Employee).salary) })
+      })
+
+    return () => {
+      cancelled = true
+    }
+  }, [id, fromList])
 
   const initial = useMemo<EmployeeInsert | undefined>(() => {
     if (!employee) return undefined
@@ -30,7 +72,9 @@ export function EditEmployeePage() {
     }
   }, [employee])
 
-  if (loading && !employee) {
+  const showSpinner = !employee && (loading || fetching)
+
+  if (showSpinner) {
     return (
       <div className="flex min-h-dvh items-center justify-center bg-white">
         <div className="h-8 w-8 animate-spin rounded-full border-2 border-zinc-200 border-t-zinc-900" />
@@ -42,6 +86,7 @@ export function EditEmployeePage() {
     return (
       <div className="mx-auto flex min-h-dvh max-w-lg flex-col items-center justify-center gap-4 bg-white px-4">
         <p className="text-[17px] font-semibold text-zinc-900">Сотрудник не найден</p>
+        {fetchError && <p className="text-center text-[13px] text-red-600">{fetchError}</p>}
         <Link to="/" className="ios-button-primary">
           На главную
         </Link>
@@ -157,6 +202,7 @@ export function EditEmployeePage() {
         onClose={() => setEditOpen(false)}
         onSubmit={async (data) => {
           const result = await updateEmployee(employee.id, data)
+          if (!result.error) setFetched(null)
           return result
         }}
         initial={initial}

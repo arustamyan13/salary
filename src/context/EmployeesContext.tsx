@@ -8,7 +8,8 @@ import {
   type ReactNode,
 } from 'react'
 import { supabase } from '../lib/supabase'
-import { advancePayDay } from '../lib/dates'
+import { advancePayDay, daysUntilPay } from '../lib/dates'
+import { OWNER_ID } from '../lib/auth'
 import type {
   Employee,
   EmployeeInsert,
@@ -16,9 +17,7 @@ import type {
   FilterOption,
   SortOption,
 } from '../types/employee'
-import { OWNER_ID } from '../lib/auth'
 import { useAuth } from './AuthContext'
-import { daysUntilPay } from '../lib/dates'
 
 type EmployeesContextValue = {
   employees: Employee[]
@@ -54,6 +53,13 @@ function applySort(list: Employee[], sort: SortOption): Employee[] {
   }
 }
 
+function mapRows(data: Employee[] | null): Employee[] {
+  return (data ?? []).map((row) => ({
+    ...row,
+    salary: Number(row.salary),
+  }))
+}
+
 export function EmployeesProvider({ children }: { children: ReactNode }) {
   const { user } = useAuth()
   const [employees, setEmployees] = useState<Employee[]>([])
@@ -63,14 +69,15 @@ export function EmployeesProvider({ children }: { children: ReactNode }) {
   const [sort, setSort] = useState<SortOption>('pay_day')
   const [filter, setFilter] = useState<FilterOption>('all')
 
-  const refresh = useCallback(async () => {
+  const refresh = useCallback(async (opts?: { silent?: boolean }) => {
     if (!user) {
       setEmployees([])
       setLoading(false)
       return
     }
 
-    setLoading(true)
+    // Don't flash full-page spinner on background refreshes (edit/save/pay)
+    if (!opts?.silent) setLoading(true)
     setError(null)
 
     const { data, error: fetchError } = await supabase
@@ -80,13 +87,9 @@ export function EmployeesProvider({ children }: { children: ReactNode }) {
 
     if (fetchError) {
       setError(fetchError.message)
-      setEmployees([])
+      if (!opts?.silent) setEmployees([])
     } else {
-      const rows = ((data as Employee[]) ?? []).map((row) => ({
-        ...row,
-        salary: Number(row.salary),
-      }))
-      setEmployees(rows)
+      setEmployees(mapRows(data as Employee[]))
     }
     setLoading(false)
   }, [user])
@@ -106,7 +109,7 @@ export function EmployeesProvider({ children }: { children: ReactNode }) {
       })
 
       if (insertError) return { error: insertError.message }
-      await refresh()
+      await refresh({ silent: true })
       return { error: null }
     },
     [user, refresh],
@@ -114,9 +117,35 @@ export function EmployeesProvider({ children }: { children: ReactNode }) {
 
   const updateEmployee = useCallback(
     async (id: string, data: EmployeeUpdate) => {
-      const { error: updateError } = await supabase.from('employees').update(data).eq('id', id)
+      const { data: updated, error: updateError } = await supabase
+        .from('employees')
+        .update(data)
+        .eq('id', id)
+        .select('*')
+        .maybeSingle()
+
       if (updateError) return { error: updateError.message }
-      await refresh()
+
+      if (updated) {
+        const row = mapRows([updated as Employee])[0]
+        setEmployees((prev) => prev.map((e) => (e.id === id ? row : e)))
+      } else {
+        // Fallback: merge locally if select is restricted
+        setEmployees((prev) =>
+          prev.map((e) =>
+            e.id === id
+              ? {
+                  ...e,
+                  ...data,
+                  salary: data.salary !== undefined ? Number(data.salary) : e.salary,
+                  comment: data.comment !== undefined ? data.comment ?? null : e.comment,
+                }
+              : e,
+          ),
+        )
+        await refresh({ silent: true })
+      }
+
       return { error: null }
     },
     [refresh],
@@ -126,10 +155,10 @@ export function EmployeesProvider({ children }: { children: ReactNode }) {
     async (id: string) => {
       const { error: deleteError } = await supabase.from('employees').delete().eq('id', id)
       if (deleteError) return { error: deleteError.message }
-      await refresh()
+      setEmployees((prev) => prev.filter((e) => e.id !== id))
       return { error: null }
     },
-    [refresh],
+    [],
   )
 
   const markPaid = useCallback(
@@ -175,7 +204,7 @@ export function EmployeesProvider({ children }: { children: ReactNode }) {
       setSearch,
       setSort,
       setFilter,
-      refresh,
+      refresh: () => refresh({ silent: true }),
       createEmployee,
       updateEmployee,
       deleteEmployee,
