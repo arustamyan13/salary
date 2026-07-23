@@ -7,12 +7,10 @@ import { FilterBar } from '../components/FilterBar'
 import { PushSettings } from '../components/PushSettings'
 import { SearchBar } from '../components/SearchBar'
 import { StatsHeader } from '../components/StatsHeader'
-import { useAuth } from '../context/AuthContext'
 import { useEmployees } from '../context/EmployeesContext'
 
 export function HomePage() {
   const navigate = useNavigate()
-  const { signOut } = useAuth()
   const {
     employees,
     filtered,
@@ -27,11 +25,6 @@ export function HomePage() {
     createEmployee,
   } = useEmployees()
   const [modalOpen, setModalOpen] = useState(false)
-
-  function handleSignOut() {
-    const ok = window.confirm('Выйти из приложения?')
-    if (ok) signOut()
-  }
 
   return (
     <div className="mx-auto min-h-dvh max-w-lg bg-white px-4 pb-28 pt-[calc(1rem+env(safe-area-inset-top))]">
@@ -81,16 +74,6 @@ export function HomePage() {
             />
           ))}
       </section>
-
-      <div className="mt-16 mb-4 flex justify-center">
-        <button
-          type="button"
-          onClick={handleSignOut}
-          className="px-3 py-2 text-[12px] text-zinc-300 transition hover:text-zinc-500 active:opacity-70"
-        >
-          Выйти
-        </button>
-      </div>
 
       <FabButton onClick={() => setModalOpen(true)} />
 

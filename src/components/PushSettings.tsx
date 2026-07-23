@@ -1,4 +1,7 @@
+import { useState } from 'react'
 import { usePushNotifications } from '../hooks/usePushNotifications'
+
+const TEST_KEY = 'salary_push_tested'
 
 export function PushSettings() {
   const {
@@ -11,13 +14,30 @@ export function PushSettings() {
     permission,
   } = usePushNotifications()
 
-  if (!supported) {
-    return (
-      <p className="rounded-2xl bg-zinc-50 px-3 py-2 text-[12px] text-zinc-500">
-        Push-уведомления недоступны в этом браузере. На iPhone добавьте приложение на домашний
-        экран (iOS 16.4+).
-      </p>
-    )
+  const [tested, setTested] = useState(() => {
+    try {
+      return localStorage.getItem(TEST_KEY) === '1'
+    } catch {
+      return false
+    }
+  })
+  const [sendingTest, setSendingTest] = useState(false)
+
+  // Fully subscribed and test already done — keep UI clean
+  if (supported && subscribed && tested) return null
+
+  if (!supported) return null
+
+  async function handleTest() {
+    setSendingTest(true)
+    await sendTestNotification()
+    try {
+      localStorage.setItem(TEST_KEY, '1')
+    } catch {
+      /* ignore */
+    }
+    setTested(true)
+    setSendingTest(false)
   }
 
   return (
@@ -47,13 +67,14 @@ export function PushSettings() {
         )}
       </div>
 
-      {subscribed && (
+      {subscribed && !tested && (
         <button
           type="button"
-          onClick={() => void sendTestNotification()}
-          className="mt-3 w-full rounded-xl bg-white py-2.5 text-[13px] font-semibold text-zinc-800 shadow-sm transition active:scale-[0.98]"
+          disabled={sendingTest}
+          onClick={() => void handleTest()}
+          className="mt-3 w-full rounded-xl bg-white py-2.5 text-[13px] font-semibold text-zinc-800 shadow-sm transition active:scale-[0.98] disabled:opacity-60"
         >
-          Пробное уведомление
+          {sendingTest ? 'Отправка…' : 'Пробное уведомление'}
         </button>
       )}
 

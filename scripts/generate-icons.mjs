@@ -29,9 +29,10 @@ function chunk(type, data) {
   return Buffer.concat([len, typeBuf, data, crcBuf])
 }
 
-/** Solid rounded-square PNG (zinc-900) with a simple white glyph. */
+/** Rounded dark tile with a white ruble (₽) glyph. */
 function createIcon(size) {
-  const { width, height } = { width: size, height: size }
+  const width = size
+  const height = size
   const raw = Buffer.alloc((width * 4 + 1) * height)
 
   const bg = [24, 24, 27, 255]
@@ -46,11 +47,49 @@ function createIcon(size) {
     return dx * dx + dy * dy <= radius * radius
   }
 
-  // Plus glyph bounds
-  const bar = size * 0.1
-  const arm = size * 0.28
-  const cx = size / 2
-  const cy = size / 2
+  // Normalized ₽ shape in unit box [0..1]
+  const stroke = 0.09
+  const onRuble = (nx, ny) => {
+    // vertical stem
+    const stemX = 0.38
+    const stemTop = 0.22
+    const stemBottom = 0.78
+    const onStem =
+      nx >= stemX - stroke / 2 &&
+      nx <= stemX + stroke / 2 &&
+      ny >= stemTop &&
+      ny <= stemBottom
+
+    // bowl of Р (right side of stem)
+    const bowlCx = stemX
+    const bowlCy = 0.36
+    const bowlRx = 0.22
+    const bowlRy = 0.16
+    const inBowlOuter =
+      ((nx - bowlCx) / bowlRx) ** 2 + ((ny - bowlCy) / bowlRy) ** 2 <= 1 && nx >= stemX
+    const inBowlInner =
+      ((nx - bowlCx) / (bowlRx - stroke)) ** 2 + ((ny - bowlCy) / (bowlRy - stroke)) ** 2 <= 1 &&
+      nx >= stemX + stroke * 0.2
+    const onBowl = inBowlOuter && !inBowlInner && ny <= bowlCy + bowlRy
+
+    // two horizontal bars (ruble)
+    const bar1y = 0.54
+    const bar2y = 0.66
+    const barLeft = stemX - 0.02
+    const barRight = 0.72
+    const onBar1 =
+      ny >= bar1y - stroke / 2 &&
+      ny <= bar1y + stroke / 2 &&
+      nx >= barLeft &&
+      nx <= barRight
+    const onBar2 =
+      ny >= bar2y - stroke / 2 &&
+      ny <= bar2y + stroke / 2 &&
+      nx >= barLeft &&
+      nx <= barRight
+
+    return onStem || onBowl || onBar1 || onBar2
+  }
 
   for (let y = 0; y < height; y += 1) {
     raw[y * (width * 4 + 1)] = 0
@@ -58,10 +97,7 @@ function createIcon(size) {
       const i = y * (width * 4 + 1) + 1 + x * 4
       let color = [0, 0, 0, 0]
       if (inRoundRect(x, y)) {
-        const onPlus =
-          (Math.abs(x - cx) <= arm && Math.abs(y - cy) <= bar) ||
-          (Math.abs(y - cy) <= arm && Math.abs(x - cx) <= bar)
-        color = onPlus ? fg : bg
+        color = onRuble(x / (width - 1), y / (height - 1)) ? fg : bg
       }
       raw[i] = color[0]
       raw[i + 1] = color[1]
@@ -89,8 +125,7 @@ function createIcon(size) {
 }
 
 function writePng(path, size) {
-  const buf = createIcon(size)
-  createWriteStream(path).end(buf)
+  createWriteStream(path).end(createIcon(size))
   console.log('Wrote', path)
 }
 
@@ -100,7 +135,7 @@ writePng(join(root, 'apple-touch-icon.png'), 180)
 
 const favicon = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
   <rect width="64" height="64" rx="14" fill="#18181b"/>
-  <path d="M18 32h28M32 18v28" stroke="#fff" stroke-width="6" stroke-linecap="round"/>
+  <text x="32" y="44" text-anchor="middle" font-size="36" font-family="system-ui, -apple-system, Segoe UI, sans-serif" font-weight="600" fill="#fff">₽</text>
 </svg>`
 
 createWriteStream(join(root, 'favicon.svg')).end(favicon)
