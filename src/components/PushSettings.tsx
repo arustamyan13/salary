@@ -9,7 +9,6 @@ export function PushSettings() {
     subscribed,
     loading,
     error,
-    deviceLimitReached,
     subscribe,
     sendTestNotification,
     permission,
@@ -25,19 +24,6 @@ export function PushSettings() {
   const [sendingTest, setSendingTest] = useState(false)
 
   if (!supported) return null
-
-  // Device limit must stay visible
-  if (deviceLimitReached || error?.includes('Ограничение по устройствам')) {
-    return (
-      <div className="rounded-2xl bg-amber-50 px-3 py-3">
-        <p className="text-[14px] font-semibold text-amber-900">Ограничение по устройствам</p>
-        <p className="mt-1 text-[12px] text-amber-800">
-          Можно подключить только 2 устройства. Отключите уведомления на одном из них, чтобы
-          добавить это.
-        </p>
-      </div>
-    )
-  }
 
   // Fully subscribed and test already done — keep UI clean
   if (subscribed && tested) return null

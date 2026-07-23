@@ -3,10 +3,6 @@ import { supabase } from '../lib/supabase'
 import { useAuth } from '../context/AuthContext'
 import { OWNER_ID } from '../lib/auth'
 
-const MAX_PUSH_CONNECTIONS = 2
-export const DEVICE_LIMIT_MESSAGE =
-  'Ограничение по устройствам: можно подключить только 2 устройства'
-
 function urlBase64ToUint8Array(base64String: string): Uint8Array {
   const padding = '='.repeat((4 - (base64String.length % 4)) % 4)
   const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/')
@@ -38,7 +34,6 @@ export function usePushNotifications() {
   const [subscribed, setSubscribed] = useState(false)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [deviceLimitReached, setDeviceLimitReached] = useState(false)
   const autoTried = useRef(false)
 
   useEffect(() => {
@@ -66,9 +61,6 @@ export function usePushNotifications() {
 
     setLoading(true)
     setError(null)
-    setDeviceLimitReached(false)
-
-    let createdNewSubscription = false
 
     try {
       const perm = await Notification.requestPermission()
@@ -87,29 +79,9 @@ export function usePushNotifications() {
           userVisibleOnly: true,
           applicationServerKey: urlBase64ToUint8Array(vapidKey) as BufferSource,
         })
-        createdNewSubscription = true
       }
 
       const keys = await subscriptionToKeys(subscription)
-
-      const { data: existing, error: listError } = await supabase
-        .from('push_subscriptions')
-        .select('endpoint')
-        .eq('user_id', OWNER_ID)
-
-      if (listError) throw new Error(listError.message)
-
-      const otherDevices = (existing ?? []).filter((row) => row.endpoint !== keys.endpoint)
-      if (otherDevices.length >= MAX_PUSH_CONNECTIONS) {
-        if (createdNewSubscription) {
-          await subscription.unsubscribe()
-        }
-        setDeviceLimitReached(true)
-        setError(DEVICE_LIMIT_MESSAGE)
-        setSubscribed(false)
-        setLoading(false)
-        return false
-      }
 
       const { error: upsertError } = await supabase.from('push_subscriptions').upsert(
         {
@@ -147,21 +119,8 @@ export function usePushNotifications() {
         if (cancelled) return
 
         if (sub) {
-          const endpoint = sub.endpoint
-          const { data } = await supabase
-            .from('push_subscriptions')
-            .select('endpoint')
-            .eq('user_id', OWNER_ID)
-
-          const saved = (data ?? []).some((row) => row.endpoint === endpoint)
-          if (saved) {
-            setSubscribed(true)
-            setPermission(Notification.permission)
-            return
-          }
-
-          // Local subscription exists but not in DB — try register (may hit limit)
-          await subscribe()
+          setSubscribed(true)
+          setPermission(Notification.permission)
           return
         }
 
@@ -215,7 +174,6 @@ export function usePushNotifications() {
     subscribed,
     loading,
     error,
-    deviceLimitReached,
     subscribe,
     sendTestNotification,
   }
