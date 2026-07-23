@@ -28,20 +28,16 @@ export function HomePage() {
   } = useEmployees()
   const [modalOpen, setModalOpen] = useState(false)
 
+  function handleSignOut() {
+    const ok = window.confirm('Выйти из приложения?')
+    if (ok) signOut()
+  }
+
   return (
     <div className="mx-auto min-h-dvh max-w-lg bg-white px-4 pb-28 pt-[calc(1rem+env(safe-area-inset-top))]">
-      <header className="mb-5 flex items-start justify-between gap-3">
-        <div>
-          <p className="text-[13px] font-medium text-zinc-500">Учёт выплат</p>
-          <h1 className="text-[28px] font-bold tracking-tight text-zinc-900">Зарплата</h1>
-        </div>
-        <button
-          type="button"
-          onClick={() => signOut()}
-          className="rounded-full bg-zinc-100 px-3 py-2 text-[13px] font-semibold text-zinc-600 transition active:scale-95"
-        >
-          Выйти
-        </button>
+      <header className="mb-5">
+        <p className="text-[13px] font-medium text-zinc-500">Учёт выплат</p>
+        <h1 className="text-[28px] font-bold tracking-tight text-zinc-900">Зарплата</h1>
       </header>
 
       <div className="space-y-4">
@@ -85,6 +81,16 @@ export function HomePage() {
             />
           ))}
       </section>
+
+      <div className="mt-16 mb-4 flex justify-center">
+        <button
+          type="button"
+          onClick={handleSignOut}
+          className="px-3 py-2 text-[12px] text-zinc-300 transition hover:text-zinc-500 active:opacity-70"
+        >
+          Выйти
+        </button>
+      </div>
 
       <FabButton onClick={() => setModalOpen(true)} />
 

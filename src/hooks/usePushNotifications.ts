@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../context/AuthContext'
 import { OWNER_ID } from '../lib/auth'
@@ -34,6 +34,7 @@ export function usePushNotifications() {
   const [subscribed, setSubscribed] = useState(false)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const autoTried = useRef(false)
 
   useEffect(() => {
     const ok =
@@ -45,27 +46,6 @@ export function usePushNotifications() {
     setSupported(ok)
     if (ok) setPermission(Notification.permission)
   }, [])
-
-  useEffect(() => {
-    if (!supported || !user) return
-
-    let cancelled = false
-
-    async function checkExisting() {
-      try {
-        const reg = await navigator.serviceWorker.ready
-        const sub = await reg.pushManager.getSubscription()
-        if (!cancelled) setSubscribed(Boolean(sub))
-      } catch {
-        if (!cancelled) setSubscribed(false)
-      }
-    }
-
-    void checkExisting()
-    return () => {
-      cancelled = true
-    }
-  }, [supported, user])
 
   const subscribe = useCallback(async () => {
     if (!user) {
@@ -126,23 +106,64 @@ export function usePushNotifications() {
     }
   }, [user])
 
-  const unsubscribe = useCallback(async () => {
-    setLoading(true)
+  useEffect(() => {
+    if (!supported || !user || autoTried.current) return
+    autoTried.current = true
+
+    let cancelled = false
+
+    async function bootstrap() {
+      try {
+        const reg = await navigator.serviceWorker.ready
+        const sub = await reg.pushManager.getSubscription()
+        if (cancelled) return
+
+        if (sub) {
+          setSubscribed(true)
+          setPermission(Notification.permission)
+          return
+        }
+
+        if (Notification.permission === 'denied') {
+          setPermission('denied')
+          return
+        }
+
+        await subscribe()
+      } catch {
+        if (!cancelled) setSubscribed(false)
+      }
+    }
+
+    void bootstrap()
+    return () => {
+      cancelled = true
+    }
+  }, [supported, user, subscribe])
+
+  const sendTestNotification = useCallback(async () => {
     setError(null)
     try {
-      const reg = await navigator.serviceWorker.ready
-      const subscription = await reg.pushManager.getSubscription()
-      if (subscription) {
-        const endpoint = subscription.endpoint
-        await subscription.unsubscribe()
-        await supabase.from('push_subscriptions').delete().eq('endpoint', endpoint)
+      if (Notification.permission !== 'granted') {
+        const perm = await Notification.requestPermission()
+        setPermission(perm)
+        if (perm !== 'granted') {
+          setError('Нет разрешения на уведомления')
+          return false
+        }
       }
-      setSubscribed(false)
-      setLoading(false)
+
+      const reg = await navigator.serviceWorker.ready
+      await reg.showNotification('Зарплата — тест', {
+        body: 'Пробное уведомление: всё работает',
+        icon: './icons/icon-192.png',
+        badge: './icons/icon-192.png',
+        tag: 'salary-test',
+        data: { url: './' },
+      })
       return true
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Ошибка отписки')
-      setLoading(false)
+      setError(err instanceof Error ? err.message : 'Не удалось показать уведомление')
       return false
     }
   }, [])
@@ -154,6 +175,6 @@ export function usePushNotifications() {
     loading,
     error,
     subscribe,
-    unsubscribe,
+    sendTestNotification,
   }
 }
