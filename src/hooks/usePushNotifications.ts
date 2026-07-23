@@ -4,6 +4,8 @@ import { useAuth } from '../context/AuthContext'
 import { OWNER_ID } from '../lib/auth'
 
 const MAX_PUSH_CONNECTIONS = 2
+export const DEVICE_LIMIT_MESSAGE =
+  'Ограничение по устройствам: можно подключить только 2 устройства'
 
 function urlBase64ToUint8Array(base64String: string): Uint8Array {
   const padding = '='.repeat((4 - (base64String.length % 4)) % 4)
@@ -29,36 +31,6 @@ async function subscriptionToKeys(subscription: PushSubscription) {
   }
 }
 
-async function keepOnlyLatestConnections(keepEndpoint: string) {
-  const { data, error } = await supabase
-    .from('push_subscriptions')
-    .select('id, endpoint, updated_at, created_at')
-    .eq('user_id', OWNER_ID)
-    .order('updated_at', { ascending: false })
-
-  if (error || !data) return
-
-  // Prefer rows sorted with the just-saved endpoint first, then by recency
-  const sorted = [...data].sort((a, b) => {
-    if (a.endpoint === keepEndpoint) return -1
-    if (b.endpoint === keepEndpoint) return 1
-    const ta = new Date(a.updated_at || a.created_at).getTime()
-    const tb = new Date(b.updated_at || b.created_at).getTime()
-    return tb - ta
-  })
-
-  const stale = sorted.slice(MAX_PUSH_CONNECTIONS)
-  if (stale.length === 0) return
-
-  await supabase
-    .from('push_subscriptions')
-    .delete()
-    .in(
-      'id',
-      stale.map((row) => row.id),
-    )
-}
-
 export function usePushNotifications() {
   const { user } = useAuth()
   const [supported, setSupported] = useState(false)
@@ -66,6 +38,7 @@ export function usePushNotifications() {
   const [subscribed, setSubscribed] = useState(false)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [deviceLimitReached, setDeviceLimitReached] = useState(false)
   const autoTried = useRef(false)
 
   useEffect(() => {
@@ -93,6 +66,9 @@ export function usePushNotifications() {
 
     setLoading(true)
     setError(null)
+    setDeviceLimitReached(false)
+
+    let createdNewSubscription = false
 
     try {
       const perm = await Notification.requestPermission()
@@ -111,9 +87,29 @@ export function usePushNotifications() {
           userVisibleOnly: true,
           applicationServerKey: urlBase64ToUint8Array(vapidKey) as BufferSource,
         })
+        createdNewSubscription = true
       }
 
       const keys = await subscriptionToKeys(subscription)
+
+      const { data: existing, error: listError } = await supabase
+        .from('push_subscriptions')
+        .select('endpoint')
+        .eq('user_id', OWNER_ID)
+
+      if (listError) throw new Error(listError.message)
+
+      const otherDevices = (existing ?? []).filter((row) => row.endpoint !== keys.endpoint)
+      if (otherDevices.length >= MAX_PUSH_CONNECTIONS) {
+        if (createdNewSubscription) {
+          await subscription.unsubscribe()
+        }
+        setDeviceLimitReached(true)
+        setError(DEVICE_LIMIT_MESSAGE)
+        setSubscribed(false)
+        setLoading(false)
+        return false
+      }
 
       const { error: upsertError } = await supabase.from('push_subscriptions').upsert(
         {
@@ -127,8 +123,6 @@ export function usePushNotifications() {
       )
 
       if (upsertError) throw new Error(upsertError.message)
-
-      await keepOnlyLatestConnections(keys.endpoint)
 
       setSubscribed(true)
       setLoading(false)
@@ -153,8 +147,21 @@ export function usePushNotifications() {
         if (cancelled) return
 
         if (sub) {
-          setSubscribed(true)
-          setPermission(Notification.permission)
+          const endpoint = sub.endpoint
+          const { data } = await supabase
+            .from('push_subscriptions')
+            .select('endpoint')
+            .eq('user_id', OWNER_ID)
+
+          const saved = (data ?? []).some((row) => row.endpoint === endpoint)
+          if (saved) {
+            setSubscribed(true)
+            setPermission(Notification.permission)
+            return
+          }
+
+          // Local subscription exists but not in DB — try register (may hit limit)
+          await subscribe()
           return
         }
 
@@ -208,6 +215,7 @@ export function usePushNotifications() {
     subscribed,
     loading,
     error,
+    deviceLimitReached,
     subscribe,
     sendTestNotification,
   }
