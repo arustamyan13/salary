@@ -24,9 +24,10 @@ export function SplashScreen({ onFinished }: Props) {
       aria-hidden={leaving}
     >
       <div className="flex flex-col items-center px-8 text-center animate-splash-in">
-        <p className="text-[34px] font-semibold tracking-[-0.04em] text-zinc-900">Aik prod</p>
-        <div className="mt-4 h-px w-10 bg-zinc-200" />
-        <p className="mt-4 text-[12px] font-medium uppercase tracking-[0.42em] text-zinc-400">
+        <p className="font-splash-classic text-[42px] leading-none tracking-tight text-black sm:text-[48px]">
+          Aik prod
+        </p>
+        <p className="font-splash-script mt-5 text-[28px] leading-none text-emerald-600 sm:text-[32px]">
           Salary
         </p>
       </div>

@@ -77,6 +77,16 @@ body {
   animation: splash-in 0.7s cubic-bezier(0.22, 1, 0.36, 1) both;
 }
 
+.font-splash-classic {
+  font-family: 'Playfair Display', 'Times New Roman', Times, serif;
+  font-weight: 700;
+}
+
+.font-splash-script {
+  font-family: 'Great Vibes', 'Segoe Script', 'Apple Chancery', cursive;
+  font-style: italic;
+}
+
 .duration-400 {
   transition-duration: 400ms;
 }
