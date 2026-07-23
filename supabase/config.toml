@@ -1,0 +1,9 @@
+{
+  "name": "salary-tracker",
+  "project_id": "your-project-ref",
+  "functions": {
+    "send-pay-reminders": {
+      "verify_jwt": false
+    }
+  }
+}

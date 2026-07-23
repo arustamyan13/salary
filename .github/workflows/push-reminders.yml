@@ -1,0 +1,31 @@
+name: Daily Pay Reminders
+
+on:
+  schedule:
+    # 06:00 UTC ≈ 09:00 Europe/Moscow
+    - cron: '0 6 * * *'
+  workflow_dispatch:
+
+jobs:
+  remind:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install web-push
+        run: npm install web-push@3.6.7 @supabase/supabase-js@2 --no-save
+
+      - name: Send reminders
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          VAPID_PUBLIC_KEY: ${{ secrets.VAPID_PUBLIC_KEY }}
+          VAPID_PRIVATE_KEY: ${{ secrets.VAPID_PRIVATE_KEY }}
+          VAPID_SUBJECT: ${{ secrets.VAPID_SUBJECT }}
+          TZ: Europe/Moscow
+        run: node scripts/send-pay-reminders.mjs

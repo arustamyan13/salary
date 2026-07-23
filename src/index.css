@@ -1,0 +1,114 @@
+@import 'tailwindcss';
+
+@font-face {
+  font-family: 'SF Pro Display';
+  src: local('SF Pro Display'), local('SF Pro Text'), local('-apple-system');
+  font-display: swap;
+}
+
+:root {
+  color-scheme: light;
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+  font-family:
+    'SF Pro Display',
+    'Segoe UI',
+    system-ui,
+    -apple-system,
+    BlinkMacSystemFont,
+    sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  -webkit-tap-highlight-color: transparent;
+}
+
+html,
+body,
+#root {
+  min-height: 100%;
+}
+
+body {
+  margin: 0;
+  background: #ffffff;
+  color: #18181b;
+  overscroll-behavior-y: none;
+}
+
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes slide-up {
+  from {
+    opacity: 0;
+    transform: translateY(24px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-fade-in {
+  animation: fade-in 0.25s ease-out;
+}
+
+.animate-slide-up {
+  animation: slide-up 0.35s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.ios-input {
+  width: 100%;
+  border-radius: 1rem;
+  border: 1px solid #f4f4f5;
+  background: #f4f4f5;
+  padding: 0.875rem 1rem;
+  font-size: 16px;
+  color: #18181b;
+  outline: none;
+  transition:
+    background 0.2s ease,
+    box-shadow 0.2s ease,
+    border-color 0.2s ease;
+}
+
+.ios-input:focus {
+  border-color: #d4d4d8;
+  background: #ffffff;
+  box-shadow: 0 0 0 4px rgba(24, 24, 27, 0.06);
+}
+
+.ios-button-primary {
+  border-radius: 1rem;
+  background: #18181b;
+  padding: 0.9rem 1.25rem;
+  font-size: 16px;
+  font-weight: 600;
+  color: #ffffff;
+  transition:
+    transform 0.15s ease,
+    opacity 0.15s ease;
+}
+
+.ios-button-primary:active {
+  transform: scale(0.98);
+}
+
+.ios-button-secondary {
+  border-radius: 1rem;
+  background: #f4f4f5;
+  padding: 0.9rem 1.25rem;
+  font-size: 16px;
+  font-weight: 600;
+  color: #18181b;
+  transition: transform 0.15s ease;
+}
+
+.ios-button-secondary:active {
+  transform: scale(0.98);
+}
